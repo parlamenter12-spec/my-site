@@ -1,0 +1,73 @@
+<section class="mb-5 fade-up">
+    <h2 class="text-center mb-4">Наши услуги</h2>
+    <div class="row" id="servicesList"></div>
+</section>
+
+<section class="mb-5 fade-up" style="animation-delay: 0.2s;">
+    <h2 class="text-center mb-4">Отзывы клиентов</h2>
+    <div class="row" id="reviewsList"></div>
+</section>
+
+<section class="lead-form p-4 p-md-5 mb-5 fade-up" style="animation-delay: 0.3s;">
+    <h3 class="mb-4 text-center">
+        <i class="bi bi-chat-right-text"></i>
+        Оставить заявку
+    </h3>
+
+    <form id="leadForm">
+        <div class="row g-4">
+
+            <div class="col-md-6">
+                <label class="form-label">
+                    Ваше имя
+                    <span class="text-danger">*</span>
+                </label>
+
+                <input type="text"
+                       name="name"
+                       class="form-control"
+                       required>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">
+                    Телефон
+                    <span class="text-danger">*</span>
+                </label>
+
+                <input type="tel"
+                       name="phone"
+                       class="form-control"
+                       required>
+            </div>
+
+            <div class="col-md-12">
+                <label class="form-label">Услуга</label>
+
+                <select name="service_id" class="form-select">
+                    <option value="">Выберите услугу</option>
+                </select>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Сообщение</label>
+
+                <textarea name="message"
+                          class="form-control"
+                          rows="3"></textarea>
+            </div>
+
+            <div class="col-12 text-center">
+                <button type="submit"
+                        class="btn btn-primary px-5 py-2">
+
+                    Отправить заявку
+                    <i class="bi bi-arrow-right"></i>
+                </button>
+            </div>
+
+        </div>
+    </form>
+
+    <div id="formMessage" class="mt-4"></div>
+</section>

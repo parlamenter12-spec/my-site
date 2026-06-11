@@ -1,0 +1,79 @@
+<?php
+session_start();
+$db = new SQLite3('/opt/gurufix/db/gurufix.sqlite');
+$db->enableExceptions(true);
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+    $username = trim($_POST['username']);
+    $password = $_POST['password'];
+    $stmt = $db->prepare("SELECT password_hash FROM admin_users WHERE username = :user");
+    $stmt->bindValue(':user', $username, SQLITE3_TEXT);
+    $result = $stmt->execute();
+    $row = $result->fetchArray(SQLITE3_ASSOC);
+    if ($row && password_verify($password, $row['password_hash'])) {
+        $_SESSION['admin'] = $username;
+        header('Location: admin.php');
+        exit;
+    } else $error = "Неверный логин или пароль";
+}
+if (isset($_GET['logout'])) { session_destroy(); header('Location: admin.php'); exit; }
+if (!isset($_SESSION['admin'])) {
+    ?><!DOCTYPE html>
+    <html lang="ru">
+    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Вход в админку</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);min-height:100vh;display:flex;align-items:center}</style></head>
+    <body><div class="container"><div class="row justify-content-center"><div class="col-md-5"><div class="card border-0 shadow-lg"><div class="card-body p-5"><h3 class="text-center mb-4">Вход</h3><?php if(isset($error)) echo "<div class='alert alert-danger'>$error</div>"; ?><form method="post"><input type="text" name="username" class="form-control mb-3" placeholder="Логин" required autofocus><input type="password" name="password" class="form-control mb-4" placeholder="Пароль" required><button type="submit" name="login" class="btn btn-primary w-100 py-2">Войти</button></form></div></div></div></div></div></body></html><?php exit;
+}
+
+// Обработка POST (CRUD)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['change_pass'])) { $new = trim($_POST['new_password']); if (!empty($new)) { $hash = password_hash($new, PASSWORD_DEFAULT); $stmt = $db->prepare("UPDATE admin_users SET password_hash = :hash WHERE username = :user"); $stmt->bindValue(':hash', $hash, SQLITE3_TEXT); $stmt->bindValue(':user', $_SESSION['admin'], SQLITE3_TEXT); $pass_msg = $stmt->execute() ? "<div class='alert alert-success'>Пароль изменён!</div>" : "<div class='alert alert-danger'>Ошибка записи</div>"; } else $pass_msg = "<div class='alert alert-danger'>Пароль не может быть пустым</div>"; }
+    if (isset($_FILES['logo'])) { $uploadDir = __DIR__ . '/uploads/'; if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true); $fileName = 'logo_' . time() . '.png'; if (move_uploaded_file($_FILES['logo']['tmp_name'], $uploadDir . $fileName)) { $stmt = $db->prepare("UPDATE settings SET value = :url WHERE key = 'logo_url'"); $stmt->bindValue(':url', '/uploads/' . $fileName, SQLITE3_TEXT); $stmt->execute(); $logo_ok = true; } else $logo_error = true; }
+    if (isset($_FILES['favicon'])) { $uploadDir = __DIR__ . '/uploads/'; if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true); $ext = pathinfo($_FILES['favicon']['name'], PATHINFO_EXTENSION); $fileName = 'favicon_' . time() . '.' . $ext; if (move_uploaded_file($_FILES['favicon']['tmp_name'], $uploadDir . $fileName)) { $stmt = $db->prepare("UPDATE settings SET value = :url WHERE key = 'favicon_url'"); $stmt->bindValue(':url', '/uploads/' . $fileName, SQLITE3_TEXT); $stmt->execute(); $favicon_ok = true; } else $favicon_error = true; }
+    if (isset($_FILES['service_icon']) && isset($_POST['service_id_edit'])) { $sid = (int)$_POST['service_id_edit']; $uploadDir = __DIR__ . '/uploads/'; if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true); $ext = pathinfo($_FILES['service_icon']['name'], PATHINFO_EXTENSION); $fname = 'service_' . $sid . '_' . time() . '.' . $ext; if (move_uploaded_file($_FILES['service_icon']['tmp_name'], $uploadDir . $fname)) { $stmt = $db->prepare("UPDATE services SET icon = :icon WHERE id = :id"); $stmt->bindValue(':icon', '/uploads/' . $fname, SQLITE3_TEXT); $stmt->bindValue(':id', $sid, SQLITE3_INTEGER); $stmt->execute(); $icon_ok = true; } }
+    if (isset($_POST['add_service'])) { $stmt = $db->prepare("INSERT INTO services (title, description, sort_order) VALUES (:title, :desc, 0)"); $stmt->bindValue(':title', trim($_POST['title']), SQLITE3_TEXT); $stmt->bindValue(':desc', trim($_POST['description']), SQLITE3_TEXT); $stmt->execute(); }
+    if (isset($_POST['update_service'])) { $stmt = $db->prepare("UPDATE services SET title = :title, description = :desc WHERE id = :id"); $stmt->bindValue(':title', trim($_POST['title']), SQLITE3_TEXT); $stmt->bindValue(':desc', trim($_POST['description']), SQLITE3_TEXT); $stmt->bindValue(':id', (int)$_POST['id'], SQLITE3_INTEGER); $stmt->execute(); }
+    if (isset($_POST['delete_service'])) $db->exec("DELETE FROM services WHERE id = ".(int)$_POST['id']);
+    if (isset($_POST['add_review'])) { $stmt = $db->prepare("INSERT INTO reviews (author, text, rating, is_published) VALUES (:author, :text, :rating, :pub)"); $stmt->bindValue(':author', trim($_POST['author']), SQLITE3_TEXT); $stmt->bindValue(':text', trim($_POST['text']), SQLITE3_TEXT); $stmt->bindValue(':rating', (int)$_POST['rating'], SQLITE3_INTEGER); $stmt->bindValue(':pub', isset($_POST['is_published'])?1:0, SQLITE3_INTEGER); $stmt->execute(); }
+    if (isset($_POST['update_review'])) { $stmt = $db->prepare("UPDATE reviews SET author=:author, text=:text, rating=:rating, is_published=:pub WHERE id=:id"); $stmt->bindValue(':author', trim($_POST['author']), SQLITE3_TEXT); $stmt->bindValue(':text', trim($_POST['text']), SQLITE3_TEXT); $stmt->bindValue(':rating', (int)$_POST['rating'], SQLITE3_INTEGER); $stmt->bindValue(':pub', isset($_POST['is_published'])?1:0, SQLITE3_INTEGER); $stmt->bindValue(':id', (int)$_POST['id'], SQLITE3_INTEGER); $stmt->execute(); }
+    if (isset($_POST['delete_review'])) $db->exec("DELETE FROM reviews WHERE id = ".(int)$_POST['id']);
+    if (isset($_POST['save_settings'])) { foreach ($_POST as $k => $v) if (strpos($k, 'setting_') === 0) { $realKey = substr($k, 8); $stmt = $db->prepare("UPDATE settings SET value = :val WHERE key = :key"); $stmt->bindValue(':val', $v, SQLITE3_TEXT); $stmt->bindValue(':key', $realKey, SQLITE3_TEXT); $stmt->execute(); } $saved = true; }
+    if (isset($_POST['add_page'])) { $slug = trim($_POST['slug']); $title = trim($_POST['title']); $content = trim($_POST['content']); $status = isset($_POST['status']) ? 1 : 0; $stmt = $db->prepare("INSERT INTO pages (slug, title, content, status, created_at) VALUES (:slug, :title, :content, :status, datetime('now'))"); $stmt->bindValue(':slug', $slug, SQLITE3_TEXT); $stmt->bindValue(':title', $title, SQLITE3_TEXT); $stmt->bindValue(':content', $content, SQLITE3_TEXT); $stmt->bindValue(':status', $status, SQLITE3_INTEGER); $stmt->execute(); }
+    if (isset($_POST['update_page'])) { $id = (int)$_POST['page_id']; $slug = trim($_POST['slug']); $title = trim($_POST['title']); $content = trim($_POST['content']); $status = (int)$_POST['status']; $stmt = $db->prepare("UPDATE pages SET slug = :slug, title = :title, content = :content, status = :status, updated_at = datetime('now') WHERE id = :id"); $stmt->bindValue(':slug', $slug, SQLITE3_TEXT); $stmt->bindValue(':title', $title, SQLITE3_TEXT); $stmt->bindValue(':content', $content, SQLITE3_TEXT); $stmt->bindValue(':status', $status, SQLITE3_INTEGER); $stmt->bindValue(':id', $id, SQLITE3_INTEGER); $stmt->execute(); }
+    if (isset($_POST['delete_page'])) { $id = (int)$_POST['page_id']; $db->exec("DELETE FROM pages WHERE id = $id"); }
+}
+
+// Получение данных
+$settings = []; $res = $db->query("SELECT key, value FROM settings"); while ($row = $res->fetchArray(SQLITE3_ASSOC)) $settings[$row['key']] = $row['value'];
+$services = []; $res2 = $db->query("SELECT * FROM services ORDER BY sort_order, id"); while ($row = $res2->fetchArray(SQLITE3_ASSOC)) $services[] = $row;
+$reviews = []; $res3 = $db->query("SELECT * FROM reviews ORDER BY id DESC"); while ($row = $res3->fetchArray(SQLITE3_ASSOC)) $reviews[] = $row;
+$pages = []; $res4 = $db->query("SELECT * FROM pages ORDER BY id"); while ($row = $res4->fetchArray(SQLITE3_ASSOC)) $pages[] = $row;
+$leads = []; $res5 = $db->query("SELECT * FROM leads ORDER BY id DESC LIMIT 100"); while ($row = $res5->fetchArray(SQLITE3_ASSOC)) $leads[] = $row;
+?>
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>GuruFix Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+<script src="https://cdn.tiny.cloud/1/x6ci87qxzqg6m5rnueq8x3dl616qgcrsa9378pdzmgvz1mms/tinymce/8/tinymce.min.js" referrerpolicy="origin" crossorigin="anonymous"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("TinyMCE загружен?", typeof tinymce);
+  if (typeof tinymce !== "undefined") {
+    tinymce.init({ selector: "#contentAdd", height: 250, menubar: false, plugins: "lists link", toolbar: "undo redo | bold italic | bullist numlist | link" });
+    <?php foreach ($pages as $p): ?>
+      tinymce.init({ selector: "#editContent<?=$p[id]?>", height: 250, menubar: false, plugins: "lists link", toolbar: "undo redo | bold italic | bullist numlist | link" });
+    <?php endforeach; ?>
+  } else {
+    console.error("TinyMCE не загрузился");
+  }
+});
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+<script>
+<script>
+tinymce.init({ selector: "#contentAdd", height: 300, menubar: true, plugins: "anchor autolink charmap codesample emoticons link lists media searchreplace table visualblocks wordcount checklist mediaembed casechange formatpainter pageembed permanentpen powerpaste advtable advcode mergetags autocorrect typography inlinecss", toolbar: "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link media table mergetags | align lineheight | checklist numlist bullist indent outdent | emoticons charmap | removeformat", promotion: false });
+<?php foreach ($pages as $p): ?>
+tinymce.init({ selector: "#editContent<?=$p[id]?>", height: 300, menubar: true, plugins: "anchor autolink charmap codesample emoticons link lists media searchreplace table visualblocks wordcount checklist mediaembed casechange formatpainter pageembed permanentpen powerpaste advtable advcode mergetags autocorrect typography inlinecss", toolbar: "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link media table mergetags | align lineheight | checklist numlist bullist indent outdent | emoticons charmap | removeformat", promotion: false });
+<?php endforeach; ?>
+</script>
+</body></html>
