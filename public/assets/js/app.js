@@ -2,6 +2,19 @@ let currentPage = null;
 let settings = {};
 
 // =========================
+// ESCAPE HTML (XSS PROTECTION)
+// =========================
+function escapeHtml(str) {
+    if (!str) return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// =========================
 // LOADER
 // =========================
 
@@ -133,7 +146,7 @@ async function loadSettings() {
         if (logoBlock) {
 
             logoBlock.innerHTML = `
-                <img src="${settings.logo_url}"
+                <img src="${escapeHtml(settings.logo_url)}"
                      class="logo-img"
                      loading="lazy">
             `;
@@ -447,7 +460,7 @@ async function renderPage(slug) {
 
                                 ${s.icon
                                     ? `
-                                        <img src="${s.icon}"
+                                        <img src="${escapeHtml(s.icon)}"
                                              class="service-icon"
                                              loading="lazy">
                                       `
@@ -461,11 +474,11 @@ async function renderPage(slug) {
                             <div class="service-content">
 
                                 <h3 class="service-title">
-                                    ${s.title}
+                                    ${escapeHtml(s.title)}
                                 </h3>
 
                                 <p class="service-description">
-                                    ${s.description}
+                                    ${escapeHtml(s.description)}
                                 </p>
 
                                 <div class="service-action">
@@ -494,7 +507,7 @@ async function renderPage(slug) {
 
                 services.map(s => `
                     <option value="${s.id}">
-                        ${s.title}
+                        ${escapeHtml(s.title)}
                     </option>
                 `).join('');
         }
@@ -524,7 +537,7 @@ async function renderPage(slug) {
                                     <div class="ms-3">
 
                                         <strong class="d-block">
-                                            ${r.author}
+                                            ${escapeHtml(r.author)}
                                         </strong>
 
                                         <span class="text-warning">
@@ -537,7 +550,7 @@ async function renderPage(slug) {
                                 </div>
 
                                 <p class="mb-0">
-                                    ${r.text}
+                                    ${escapeHtml(r.text)}
                                 </p>
 
                             </div>
@@ -601,7 +614,7 @@ async function renderPage(slug) {
                  ">
 
                 <h1 class="mb-4">
-                    ${page.title}
+                    ${escapeHtml(page.title)}
                 </h1>
 
                 <div class="content">
@@ -617,7 +630,7 @@ async function renderPage(slug) {
         animatePageIn();
 
         document.title =
-            page.title +
+            escapeHtml(page.title) +
             ' | ' +
             (settings.site_title || 'GuruFix');
     }
@@ -670,7 +683,7 @@ function attachLeadForm() {
 
                 msgDiv.innerHTML = `
                     <div class="alert alert-success">
-                        ${data.message || 'Заявка отправлена!'}
+                        ${escapeHtml(data.message || 'Заявка отправлена!')}
                     </div>
                 `;
 
@@ -680,7 +693,7 @@ function attachLeadForm() {
 
                 msgDiv.innerHTML = `
                     <div class="alert alert-danger">
-                        ${data.error || 'Ошибка'}
+                        ${escapeHtml(data.error || 'Ошибка')}
                     </div>
                 `;
             }
